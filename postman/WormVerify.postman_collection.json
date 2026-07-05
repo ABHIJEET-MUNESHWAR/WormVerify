@@ -1,0 +1,122 @@
+{
+  "info": {
+    "name": "WormVerify Off-Chain Relayer",
+    "description": "GraphQL API for the WormVerify guardian aggregation service. Set the {{baseUrl}} variable (default http://localhost:8080). Run 'Submit Observation' first, copy the returned message id into {{messageId}}, then sign as guardians 0..quorum-1.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "messageId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/graphql", "host": ["{{baseUrl}}"], "path": ["graphql"] },
+        "body": {
+          "mode": "graphql",
+          "graphql": { "query": "query { health }", "variables": "" }
+        }
+      }
+    },
+    {
+      "name": "Submit Observation",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/graphql", "host": ["{{baseUrl}}"], "path": ["graphql"] },
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "mutation Observe($input: ObservationInput!) { submitObservation(input: $input) }",
+            "variables": "{\n  \"input\": {\n    \"guardianSetIndex\": 0,\n    \"timestamp\": 1700000000,\n    \"nonce\": 1,\n    \"emitterChain\": 1,\n    \"emitterAddressHex\": \"1111111111111111111111111111111111111111111111111111111111111111\",\n    \"sequence\": 42,\n    \"consistencyLevel\": 1,\n    \"payloadHex\": \"deadbeef\"\n  }\n}"
+          }
+        }
+      }
+    },
+    {
+      "name": "Sign As Guardian",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/graphql", "host": ["{{baseUrl}}"], "path": ["graphql"] },
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "mutation Sign($id: String!, $index: Int!) { signAsGuardian(messageId: $id, guardianIndex: $index) { assembled have needed vaaBytesHex } }",
+            "variables": "{\n  \"id\": \"{{messageId}}\",\n  \"index\": 0\n}"
+          }
+        }
+      }
+    },
+    {
+      "name": "Get VAA",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/graphql", "host": ["{{baseUrl}}"], "path": ["graphql"] },
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query Vaa($id: String!) { vaa(id: $id) { id version guardianSetIndex numSignatures emitterChain sequence payloadHex bytesHex assembledAt } }",
+            "variables": "{\n  \"id\": \"{{messageId}}\"\n}"
+          }
+        }
+      }
+    },
+    {
+      "name": "Pending Messages",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/graphql", "host": ["{{baseUrl}}"], "path": ["graphql"] },
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query { pendingMessages { id guardianSetIndex emitterChain sequence have needed } }",
+            "variables": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "Guardian Set",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/graphql", "host": ["{{baseUrl}}"], "path": ["graphql"] },
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query { guardianSet { index quorum addresses } }",
+            "variables": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "Stats",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/graphql", "host": ["{{baseUrl}}"], "path": ["graphql"] },
+        "body": {
+          "mode": "graphql",
+          "graphql": {
+            "query": "query { stats { pending completed } }",
+            "variables": ""
+          }
+        }
+      }
+    },
+    {
+      "name": "Metrics (Prometheus)",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/metrics", "host": ["{{baseUrl}}"], "path": ["metrics"] }
+      }
+    }
+  ]
+}

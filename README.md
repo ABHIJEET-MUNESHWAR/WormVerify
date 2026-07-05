@@ -1,8 +1,9 @@
 # WormVerify 🛡️🌉
 
-> An on-chain **Wormhole-style verification core** for Solana: guardian-set management,
-> `N-of-M` secp256k1 **VAA verification**, replay protection, message emission, and governance —
-> written in Rust with the Anchor framework.
+> An end-to-end **Wormhole-style verification stack** for Solana: an Anchor **on-chain core**
+> (guardian-set management, `N-of-M` secp256k1 **VAA verification**, replay protection, message
+> emission, governance) plus a production-grade **off-chain relayer** (Tokio + GraphQL) that
+> observes messages, aggregates guardian signatures, and assembles verified VAAs.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ABHIJEET-MUNESHWAR/WormVerify/ci.yml?branch=main&label=CI)](https://github.com/ABHIJEET-MUNESHWAR/WormVerify/actions)
 [![Anchor](https://img.shields.io/badge/anchor-0.30-blue)](https://www.anchor-lang.com/)
@@ -24,11 +25,12 @@
 6. [VAA wire format](#vaa-wire-format)
 7. [Security model](#security-model)
 8. [Time & space complexity](#time--space-complexity)
-9. [Project structure](#project-structure)
-10. [Build, test & run](#build-test--run)
-11. [Test results](#test-results)
-12. [Design guideline mapping](#design-guideline-mapping)
-13. [Roadmap](#roadmap)
+9. [Off-chain relayer service](#off-chain-relayer-service)
+10. [Project structure](#project-structure)
+11. [Build, test & run](#build-test--run)
+12. [Test results](#test-results)
+13. [Design guideline mapping](#design-guideline-mapping)
+14. [Roadmap](#roadmap)
 
 ---
 
@@ -179,44 +181,121 @@ Let `N` = guardian-set size, `S` = number of signatures on a VAA, `P` = payload 
 Quorum for `N = 19` is `13`; each recovery is a constant-cost SVM syscall, so verification cost
 is linear in the number of signatures presented.
 
+## Off-chain relayer service
+
+The `crates/` workspace is a hexagonal, async off-chain service that mirrors what a Wormhole
+guardian-aggregation relayer does: observe an emitted message, collect guardian signatures,
+and assemble a **verified VAA** once a supermajority quorum signs the `keccak(keccak(body))`
+digest. It reuses the exact same VAA wire format and quorum rules as the on-chain program.
+
+```mermaid
+flowchart LR
+    subgraph API [wormverify-api · GraphQL]
+        Q[queries] --- M[mutations] --- S[subscriptions]
+    end
+    subgraph CORE [wormverify-core · engine]
+        ENG[AggregatorEngine]
+    end
+    subgraph INFRA [wormverify-infra · adapters]
+        MEM[(in-memory / Postgres)]
+        SINK[[broadcast events]]
+        SIG[simulated guardians]
+    end
+    API --> ENG
+    ENG -->|ports| MEM
+    ENG -->|ports| SINK
+    ENG -->|verify quorum| TYPES[wormverify-types]
+    SIG -->|sign digest| ENG
+    SINK --> S
+```
+
+**Crate layout (dependencies point inward):**
+
+| Crate | Layer | Responsibility |
+|---|---|---|
+| `wormverify-types` | domain (pure) | VAA parse/encode, guardian-address derivation, quorum, real secp256k1 verify |
+| `wormverify-resilience` | domain (pure) | testable clock, timeout, retry+backoff, circuit breaker, rate limiter |
+| `wormverify-core` | application | `AggregatorEngine` + ports (`MessageStore`, `VaaStore`, `GuardianRegistry`, `EventSink`) |
+| `wormverify-infra` | adapters | in-memory & Postgres stores, broadcast event sink, simulated guardian signer |
+| `wormverify-api` | adapters | `async-graphql` schema (queries, mutations, subscriptions) + axum router |
+| `wormverify-node` | composition | config (`clap`), telemetry (JSON tracing + Prometheus), startup, `serve`/`demo` |
+
+**GraphQL surface** (`POST /graphql`, playground at `GET /graphql`, subscriptions at `/ws`):
+
+- Queries: `health`, `vaa(id)`, `pendingMessages`, `guardianSet`, `stats`
+- Mutations: `submitObservation(input)`, `signAsGuardian(messageId, guardianIndex)`
+- Subscription: `events` — live `MESSAGE_OBSERVED` / `SIGNATURE_COLLECTED` / `VAA_ASSEMBLED`
+
+**Resilience & observability:** mutations are rate-limited (`governor`); a circuit breaker,
+retry-with-backoff, and timeout helper guard downstream I/O; every request is traced and a
+Prometheus scrape endpoint is exposed at `/metrics`. Completed VAAs persist to a Postgres table
+**range-partitioned by emitter chain** ([`migrations/0001_init.sql`](./migrations/0001_init.sql)).
+
+**Verification benchmark** (`criterion`, host target):
+
+| VAA signatures | `verify` time | `parse` time |
+|---:|---:|---:|
+| 7 | ~0.66 ms | — |
+| 13 | ~1.15 ms | — |
+| 19 | ~1.64 ms | ~48 ns |
+
+Verification is linear in signature count (~88 µs per secp256k1 recovery); parsing is
+allocation-light at tens of nanoseconds.
+
 ## Project structure
 
 ```
 WormVerify/
-├── anchor/
+├── anchor/                            # on-chain program (separate Cargo workspace)
 │   ├── Anchor.toml
 │   ├── Cargo.toml                     # release: overflow-checks, fat LTO
 │   └── programs/wormverify-core/
-│       ├── Cargo.toml
-│       ├── src/
-│       │   ├── lib.rs                 # instructions, accounts, events
-│       │   ├── vaa.rs                 # parsing + digest + quorum (pure)
-│       │   ├── verify.rs              # secp256k1 recovery + quorum check
-│       │   ├── state.rs               # account definitions
-│       │   └── error.rs               # WormError codes
-│       └── tests/verify_integration.rs # real secp256k1 end-to-end tests
-├── Dockerfile                         # reproducible verifiable build
-├── .github/workflows/ci.yml           # fmt + clippy + test + audit
+│       ├── src/{lib,vaa,verify,state,error}.rs
+│       └── tests/verify_integration.rs
+├── crates/                            # off-chain relayer (this workspace)
+│   ├── wormverify-types/              # VAA types, quorum, real secp256k1 verify (+ benches/)
+│   ├── wormverify-resilience/         # clock, timeout, retry, circuit breaker, rate limit
+│   ├── wormverify-core/               # AggregatorEngine + ports (hexagonal domain)
+│   ├── wormverify-infra/              # in-memory & Postgres adapters, simulated guardians
+│   ├── wormverify-api/                # async-graphql schema + axum router
+│   └── wormverify-node/               # config, telemetry, startup, serve/demo binary
+├── migrations/0001_init.sql           # partitioned `vaas` table
+├── monitoring/prometheus.yml          # scrape config
+├── postman/WormVerify.postman_collection.json
+├── Dockerfile                         # off-chain service image (multi-stage, non-root)
+├── Dockerfile.anchor                  # reproducible verifiable program build
+├── docker-compose.yml                 # node + prometheus + (optional) postgres
+├── .github/workflows/ci.yml           # fmt + clippy + test + audit (program & service)
 ├── rust-toolchain.toml
 └── README.md
 ```
 
 ## Build, test & run
 
+**On-chain program** (Anchor workspace):
+
 ```bash
-# From the anchor workspace
 cd anchor
-
-# Host build (fast) + unit + real-signature integration tests
-cargo build
-cargo test
-
-# Lint & format gates (match CI)
+cargo build && cargo test                 # unit + real-signature integration tests
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
+anchor build                              # verifiable BPF artifact
+# or: docker build -f Dockerfile.anchor -t wormverify-program .
+```
 
-# Verifiable BPF build of the program artifact
-anchor build          # or: docker build -t wormverify . && docker run --rm wormverify
+**Off-chain relayer** (this workspace, Rust 1.89):
+
+```bash
+cargo test --workspace --all-features     # 39 tests
+cargo clippy --all-targets --all-features -- -D warnings
+cargo bench -p wormverify-types --bench verify
+
+# Run a self-contained end-to-end demo (observe → sign quorum → assemble VAA)
+cargo run -p wormverify-node -- demo
+
+# Serve the GraphQL API (playground at http://localhost:8080/graphql)
+cargo run -p wormverify-node -- serve
+# or the full stack: docker compose up node prometheus
 ```
 
 ## Test results
@@ -242,6 +321,17 @@ test result: ok. 4 passed; 0 failed; 0 ignored
 | `lib` doctest | 2 | — |
 | `verify_integration` | 4 | real-signature quorum, below-quorum reject, tampered-body reject, foreign-guardian reject |
 
+**Off-chain relayer** — `cargo test --workspace --all-features` (Rust 1.89, host target):
+
+| Crate | Tests | What it proves |
+|---|---:|---|
+| `wormverify-types` | 13 | VAA round-trip, quorum, ordering, and **real secp256k1** quorum / reject cases |
+| `wormverify-resilience` | 11 | backoff growth & cap, retry give-up, timeout, circuit-breaker transitions, rate limit |
+| `wormverify-core` | 6 | full observe→quorum→assemble flow, duplicate / foreign / out-of-range / unobserved rejects |
+| `wormverify-infra` | 7 | in-memory stores, guardian-set upgrade, broadcast events, simulated-guardian signatures |
+| `wormverify-node` | 2 | **end-to-end GraphQL** observe→sign→assemble→query, guardian-set query |
+| **Total** | **39** | 0 failed; `fmt` + `clippy --all-features` clean |
+
 ## Design guideline mapping
 
 See [`EVALUATION.md`](./EVALUATION.md) for a point-by-point mapping to the 28 engineering
@@ -250,8 +340,9 @@ CI/CD, Docker, self-evaluation).
 
 ## Roadmap
 
-- [ ] `wormverify-relayer` off-chain crate (Tokio): watch `PostedMessage`, aggregate guardian
-      signatures, submit VAAs — GraphQL API + resilience (timeout/retry/circuit-breaker/rate-limit)
-      + Prometheus metrics, mirroring the hexagonal pattern used across the author's other services.
+- [x] `wormverify-*` off-chain relayer workspace (Tokio + GraphQL): observe messages, aggregate
+      guardian signatures, assemble verified VAAs — resilience (timeout/retry/circuit-breaker/
+      rate-limit) + Prometheus metrics + partitioned Postgres storage, hexagonal layout.
+- [ ] On-chain event watcher wiring the relayer to a live `PostedMessage` feed via RPC.
 - [ ] `anchor test` TypeScript suite against a local validator (full ed25519/secp256k1 tx path).
 - [ ] Governance-VAA driven guardian-set upgrades (payload-encoded, verified on-chain).

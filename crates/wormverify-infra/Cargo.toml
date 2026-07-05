@@ -1,0 +1,28 @@
+[package]
+name = "wormverify-infra"
+description = "Driven adapters for WormVerify: in-memory stores, a broadcast event sink, a simulated guardian signer, and an optional Postgres VAA store."
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+
+[features]
+default = []
+postgres = ["dep:sqlx"]
+
+[dependencies]
+wormverify-types = { workspace = true }
+wormverify-core = { workspace = true }
+async-trait = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+libsecp256k1 = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

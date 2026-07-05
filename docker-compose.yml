@@ -1,0 +1,47 @@
+# WormVerify local stack: the relayer node, Prometheus, and (optional) Postgres.
+#
+#   docker compose up node prometheus          # service + metrics
+#   docker compose --profile db up              # also start Postgres
+services:
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wormverify-node:local
+    command: ["serve"]
+    environment:
+      WV_BIND_ADDR: 0.0.0.0:8080
+      WV_GUARDIAN_COUNT: "4"
+      WV_RATE_LIMIT_RPS: "100"
+      RUST_LOG: info
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wormverify-node", "--help"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - node
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["db"]
+    environment:
+      POSTGRES_USER: wormverify
+      POSTGRES_PASSWORD: wormverify
+      POSTGRES_DB: wormverify
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

@@ -1,0 +1,85 @@
+# WormVerify off-chain workspace (relayer / guardian aggregation service).
+#
+# The on-chain Anchor program lives in `anchor/` as its own workspace and is
+# excluded here. These crates form the hexagonal off-chain service that observes
+# emitted messages, aggregates guardian signatures into VAAs, and exposes a
+# resilient, observable GraphQL API.
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+exclude = ["anchor"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+
+[workspace.dependencies]
+# async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# errors
+thiserror = "1"
+anyhow = "1"
+
+# graphql + web
+async-graphql = { version = "7", features = ["chrono"] }
+async-graphql-axum = "7"
+axum = { version = "0.8", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["timeout", "trace"] }
+
+# database
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "chrono"] }
+
+# parallelism
+rayon = "1"
+dashmap = "6"
+parking_lot = "0.12"
+
+# config / cli
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = "0.15"
+
+# observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+
+# crypto (guardian signing / VAA digests)
+libsecp256k1 = "0.7"
+tiny-keccak = { version = "2", features = ["keccak"] }
+
+# time / ids
+chrono = { version = "0.4", features = ["serde"] }
+hex = "0.4"
+
+# testing / bench
+mockall = "0.13"
+proptest = "1"
+criterion = "0.5"
+
+# internal crates
+wormverify-types = { path = "crates/wormverify-types" }
+wormverify-resilience = { path = "crates/wormverify-resilience" }
+wormverify-core = { path = "crates/wormverify-core" }
+wormverify-infra = { path = "crates/wormverify-infra" }
+wormverify-api = { path = "crates/wormverify-api" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.bench]
+debug = true
+strip = false

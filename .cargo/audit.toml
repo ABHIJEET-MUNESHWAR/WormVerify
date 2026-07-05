@@ -1,0 +1,8 @@
+# cargo-audit configuration for the off-chain workspace.
+#
+# RUSTSEC-2023-0071 (Marvin attack on the `rsa` crate) is pulled in transitively
+# by sqlx but is never exercised: WormVerify uses only the Postgres backend with
+# SCRAM authentication and never performs RSA operations. Tracked upstream in
+# sqlx; ignored here to keep `cargo audit --deny warnings` actionable.
+[advisories]
+ignore = ["RUSTSEC-2023-0071"]

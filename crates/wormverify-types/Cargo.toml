@@ -1,0 +1,23 @@
+[package]
+name = "wormverify-types"
+description = "Core VAA domain types, guardian-address derivation, parsing, encoding, and quorum math for the WormVerify off-chain service."
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+tiny-keccak = { workspace = true }
+hex = { workspace = true }
+libsecp256k1 = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+proptest = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "verify"
+harness = false

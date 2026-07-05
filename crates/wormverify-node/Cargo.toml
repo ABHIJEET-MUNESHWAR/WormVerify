@@ -1,0 +1,33 @@
+[package]
+name = "wormverify-node"
+description = "Composition root and binary for the WormVerify off-chain relayer: config, telemetry, startup wiring, GraphQL server, and a demo command."
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+
+[[bin]]
+name = "wormverify-node"
+path = "src/main.rs"
+
+[dependencies]
+wormverify-types = { workspace = true }
+wormverify-core = { workspace = true }
+wormverify-infra = { workspace = true }
+wormverify-api = { workspace = true }
+wormverify-resilience = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+tower-http = { workspace = true }
+clap = { workspace = true }
+dotenvy = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+async-graphql = { workspace = true }

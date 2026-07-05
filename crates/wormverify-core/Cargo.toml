@@ -1,0 +1,22 @@
+[package]
+name = "wormverify-core"
+description = "Hexagonal domain core: VAA aggregation engine plus storage/registry/event ports for the WormVerify off-chain service."
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+wormverify-types = { workspace = true }
+wormverify-resilience = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+libsecp256k1 = { workspace = true }
+parking_lot = { workspace = true }
