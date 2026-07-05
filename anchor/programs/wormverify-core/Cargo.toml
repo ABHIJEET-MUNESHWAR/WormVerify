@@ -22,3 +22,9 @@ anchor-lang = { version = "0.30", features = ["init-if-needed"] }
 [dev-dependencies]
 libsecp256k1 = "0.7"
 tiny-keccak = { version = "2", features = ["keccak"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(target_os, values("solana"))',
+    'cfg(feature, values("custom-heap", "custom-panic", "anchor-debug"))',
+] }

@@ -1,0 +1,28 @@
+# cargo-audit configuration for the on-chain Anchor workspace.
+#
+# Every advisory below is pulled in transitively by the pinned Solana 1.18 /
+# Anchor 0.30 toolchain and cannot be resolved without breaking on-chain
+# compatibility (the versions are fixed by the platform SDK). They are either
+# `unmaintained` notices or advisories in code paths the program never exercises
+# on-chain. Ignored so `cargo audit --deny warnings` stays actionable for
+# advisories we can actually act on.
+#
+#   RUSTSEC-2023-0033  borsh          ZST parsing unsound (pinned by Solana SDK)
+#   RUSTSEC-2024-0344  curve25519     Scalar sub timing variability (Solana SDK)
+#   RUSTSEC-2024-0388  derivative     unmaintained (Anchor macro dependency)
+#   RUSTSEC-2024-0436  paste          unmaintained (Solana/Anchor dependency)
+#   RUSTSEC-2025-0141  bincode        unmaintained (Solana SDK dependency)
+#   RUSTSEC-2025-0161  libsecp256k1   unmaintained (Solana SDK dependency)
+#   RUSTSEC-2026-0097  rand 0.7       unsound with custom logger (Solana SDK)
+#   RUSTSEC-2026-0186  memmap2        pointer offset (Solana SDK dependency)
+[advisories]
+ignore = [
+    "RUSTSEC-2023-0033",
+    "RUSTSEC-2024-0344",
+    "RUSTSEC-2024-0388",
+    "RUSTSEC-2024-0436",
+    "RUSTSEC-2025-0141",
+    "RUSTSEC-2025-0161",
+    "RUSTSEC-2026-0097",
+    "RUSTSEC-2026-0186",
+]
