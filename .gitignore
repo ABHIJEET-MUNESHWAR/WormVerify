@@ -1,0 +1,24 @@
+# Rust / Cargo
+target/
+**/target/
+Cargo.lock.bak
+
+# Anchor / Solana
+.anchor/
+anchor/target/
+test-ledger/
+**/*-keypair.json
+!anchor/target/deploy/.gitkeep
+
+# Node (for anchor TS tests)
+node_modules/
+.yarn/
+
+# Env / secrets
+.env
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
